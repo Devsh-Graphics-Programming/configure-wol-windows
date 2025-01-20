@@ -26,16 +26,24 @@ try {
     }
 
     if ($adapters.Count -eq 0) {
-        throw "No suitable network adapters found."
+        Write-Error "No suitable network adapters found."
+        throw ""
     }
 
     # --- Configuring Device --- 
     Write-Host "--- $(Get-Timestamp) Configuring Device ---" -ForegroundColor Cyan
 
     # Step 0: Disable Fast Boot
-    Write-Host "$(Get-Timestamp) Step 0: Disabling Fast Boot..." -ForegroundColor Yellow
-    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled " -Value 0 -ErrorAction Stop
-    Write-Host "$(Get-Timestamp) Disabled Fast Boot" -ForegroundColor Green
+    try {
+        Write-Host "$(Get-Timestamp) Step 0: Disabling Fast Boot..." -ForegroundColor Yellow
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled " -Value 0 -ErrorAction Stop
+        Write-Host "$(Get-Timestamp) Disabled Fast Boot" -ForegroundColor Green
+    }
+    catch {
+        Write-Error "$(Get-Timestamp) Failed to disable Fast Boot."
+        Write-Error "`n`nDue to: $_"
+        throw ""
+    }
 
     Write-Host "--- $(Get-Timestamp) Done ---`n" -ForegroundColor Cyan
 
@@ -74,14 +82,16 @@ try {
             Write-Host "--- $(Get-Timestamp) Done ---`n" -ForegroundColor Cyan
         }
         catch {
-            Write-Error "$(Get-Timestamp) Failed to configure WOL for adapter: `"$($adapter.Name)`". Error: $_"
+            Write-Error "$(Get-Timestamp) Failed to configure WOL for adapter: `"$($adapter.Name)`"."
+            Write-Error "`n`nDue to: $_"
+            throw ""
         }
     }
 
     Write-Host "`n$(Get-Timestamp) Completed!" -ForegroundColor Cyan
 }
 catch {
-    Write-Warning "$(Get-Timestamp) One or more configurations failed. Please ensure that Wake-on-LAN (WOL) is enabled in the BIOS settings."
+    Write-Warning "$(Get-Timestamp) One or more configurations failed. Terminating.."
     Write-Output "Press any key to continue..."
     [System.Console]::ReadKey() | Out-Null
     exit 1
