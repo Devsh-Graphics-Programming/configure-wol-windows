@@ -1,0 +1,3 @@
+# Wake-on-LAN (WoL) configuration for Windows
+
+[**This**](<https://github.com/Devsh-Graphics-Programming/configure-wol-windows/blob/master/win-configure-wol.ps1>) script configures [WoL](<https://learn.microsoft.com/en-us/troubleshoot/windows-client/setup-upgrade-and-drivers/wake-on-lan-feature>) on Windows machine. Only Physical Ethernet 802.3 adapters. To make it work an appropriate BIOS  option must be enabled, it's usually called "Power On By PCIe".
