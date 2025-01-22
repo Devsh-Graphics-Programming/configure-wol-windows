@@ -4,7 +4,7 @@ function Test-Administrator {
     return $currentUser.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-# If not running as administrator, elevate the script
+# Elevate the script if not running as administrator
 if (-not (Test-Administrator)) {
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -NoExit" -Verb RunAs
     exit
@@ -17,27 +17,11 @@ function Get-Timestamp {
 }
 
 try {
-    # Get all physical Ethernet adapters excluding Bluetooth and Wi-Fi
-    $adapters = Get-WmiObject -Class Win32_NetworkAdapter | Where-Object {
-        $_.AdapterType -eq "Ethernet 802.3" -and
-        $_.PhysicalAdapter -eq $true -and
-        $_.NetConnectionID -ne $null -and
-        $_.NetConnectionID -notmatch "WiFi|Wireless|Bluetooth"
-    }
-
-    if ($adapters.Count -eq 0) {
-        Write-Error "No suitable network adapters found."
-        throw ""
-    }
-
-    # --- Configuring Device --- 
-    Write-Host "--- $(Get-Timestamp) Configuring Device ---" -ForegroundColor Cyan
-
-    # Step 0: Disable Fast Boot
+    # Disable Fast Boot
     try {
-        Write-Host "$(Get-Timestamp) Step 0: Disabling Fast Boot..." -ForegroundColor Yellow
+        Write-Host "$(Get-Timestamp) Disabling Fast Boot.." -ForegroundColor Yellow
         Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled " -Value 0 -ErrorAction Stop
-        Write-Host "$(Get-Timestamp) Disabled Fast Boot" -ForegroundColor Green
+        Write-Host "$(Get-Timestamp) Fast Boot disabled." -ForegroundColor Green
     }
     catch {
         Write-Error "$(Get-Timestamp) Failed to disable Fast Boot."
@@ -45,53 +29,49 @@ try {
         throw ""
     }
 
-    Write-Host "--- $(Get-Timestamp) Done ---`n" -ForegroundColor Cyan
+    # List all physical Ethernet adapters
+    $physicalAdapters = Get-NetAdapter -Name "Ethernet*" -Physical
 
-    foreach ($adapter in $adapters) {
+    foreach ($adapter in $physicalAdapters) {
         try {
-            Write-Host "`n--- $(Get-Timestamp) Configuring Adapter ---" -ForegroundColor Cyan
-            Write-Host "Name: `"$($adapter.Name)`"" -ForegroundColor Yellow
-            Write-Host "Description: $($adapter.Description)" -ForegroundColor Yellow
-            Write-Host "MAC Address: $($adapter.MACAddress)" -ForegroundColor Yellow
-            Write-Host "NetConnectionID: $($adapter.NetConnectionID)" -ForegroundColor Yellow
-            Write-Host "PNPDeviceID: $($adapter.PNPDeviceID)" -ForegroundColor Yellow
+            # Get detailed power management properties for current adapter
+            $power = $adapter | Get-NetAdapterPowerManagement
+            $fullDeviceName = $adapter.InterfaceDescription
 
-            if (-not $adapter.PNPDeviceID) {
-                throw "Adapter `"$($adapter.Name)`" has no valid PNPDeviceID. Skipping configuration."
-            }
+            # --- Configuring adapter ---
+            Write-Host "--- $(Get-Timestamp) Configuring `"$fullDeviceName`" adapter ---" -ForegroundColor Cyan
 
-            # Registry path for network adapter settings
-            $regPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}\$($adapter.DeviceID.PadLeft(4,'0'))"
-            Write-Host "$(Get-Timestamp) Registry path determined for adapter: $regPath"
+            $adapter | Format-List -Property *
 
             # Step 1: Enable WakeOnMagicPacket
-            Write-Host "$(Get-Timestamp) Step 1: Enabling WakeOnMagicPacket" -ForegroundColor Yellow
-            Set-ItemProperty -Path $regPath -Name "*WakeOnMagicPacket" -Value 1 -ErrorAction Stop
+            Write-Host "$(Get-Timestamp) Step 1: Enabling WakeOnMagicPacket.." -ForegroundColor Yellow
+            $power.WakeOnMagicPacket = 'Enabled'
+            $power | Set-NetAdapterPowerManagement
             Write-Host "$(Get-Timestamp) WakeOnMagicPacket successfully enabled." -ForegroundColor Green
 
             # Step 2: Disable "Allow the computer to turn off this device to save power"
-            Write-Host "$(Get-Timestamp) Step 2: Disabling `"Allow the computer to turn off this device to save power`"..." -ForegroundColor Yellow
-            Set-ItemProperty -Path $regPath -Name "PnPCapabilities" -Value 24 -ErrorAction Stop
+            Write-Host "$(Get-Timestamp) Step 2: Disabling `"Allow the computer to turn off this device to save power`".." -ForegroundColor Yellow
+            $power.AllowComputerToTurnOffDevice = 'Disabled'
+            $power | Set-NetAdapterPowerManagement
             Write-Host "$(Get-Timestamp) Successfully disabled `"Allow the computer to turn off this device to save power`" option." -ForegroundColor Green
 
-            # Step 3: Enable the device to wake the system
-            Write-Host "$(Get-Timestamp) Step 3: Updating device power config to be able to wake the system..." -ForegroundColor Yellow
-            powercfg -deviceenablewake "`"$($adapter.Name)`"" | Out-Null
-            Write-Host "$(Get-Timestamp) Device wake capability enabled for: `"$($adapter.Name)`"" -ForegroundColor Green
+            # Step 3: Enable the device to wake the system from a sleep state
+            Write-Host "$(Get-Timestamp) Step 3: Enabling the device to wake the system from a sleep state.." -ForegroundColor Yellow
+            powercfg -deviceenablewake "`"$fullDeviceName`""
+            Write-Host "$(Get-Timestamp) Enabled the device to wake the system from a sleep state." -ForegroundColor Green
 
-            Write-Host "--- $(Get-Timestamp) Done ---`n" -ForegroundColor Cyan
-        }
-        catch {
-            Write-Error "$(Get-Timestamp) Failed to configure WOL for adapter: `"$($adapter.Name)`"."
+            $power | Format-List -Property *
+
+            Write-Host "--- $(Get-Timestamp) `"$fullDeviceName`" adapter configured! ---`n" -ForegroundColor Cyan
+        } catch {
+            Write-Error "$(Get-Timestamp) Failed to configure WOL for adapter: `"$($adapter.Name)`""
             Write-Error "`n`nDue to: $_"
-            throw ""
         }
     }
 
-    Write-Host "`n$(Get-Timestamp) Completed!" -ForegroundColor Cyan
-}
-catch {
-    Write-Warning "$(Get-Timestamp) One or more configurations failed. Terminating.."
+    Write-Host "`n$(Get-Timestamp) OS WoL configuration completed! Remember to turn on BIOS `"Power On By PCIe`" option." -ForegroundColor Green
+} catch {
+    Write-Warning "$(Get-Timestamp) One or more configurations failed. Terminating..."
     Write-Output "Press any key to continue..."
     [System.Console]::ReadKey() | Out-Null
     exit 1
