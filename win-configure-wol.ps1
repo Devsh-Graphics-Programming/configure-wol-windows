@@ -64,7 +64,7 @@ try {
 
             Write-Host "--- $(Get-Timestamp) `"$fullDeviceName`" adapter configured! ---`n" -ForegroundColor Cyan
         } catch {
-            Write-Error "$(Get-Timestamp) Failed to configure WOL for adapter: `"$($adapter.Name)`""
+            Write-Error "$(Get-Timestamp) Failed to configure WOL for adapter: `"$fullDeviceName`""
             Write-Error "`n`nDue to: $_"
         }
     }
