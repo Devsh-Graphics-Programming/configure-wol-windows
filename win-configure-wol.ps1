@@ -43,20 +43,28 @@ try {
 
             $adapter | Format-List -Property *
 
-            # Step 1: Enable WakeOnMagicPacket
+            # for referece checkout https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh872363(v=vs.85)
+
+            # Step 1: Enable "WakeOnMagicPacket"
             Write-Host "$(Get-Timestamp) Step 1: Enabling WakeOnMagicPacket.." -ForegroundColor Yellow
             $power.WakeOnMagicPacket = 'Enabled'
             $power | Set-NetAdapterPowerManagement
             Write-Host "$(Get-Timestamp) WakeOnMagicPacket successfully enabled." -ForegroundColor Green
 
-            # Step 2: Disable "Allow the computer to turn off this device to save power"
-            Write-Host "$(Get-Timestamp) Step 2: Disabling `"Allow the computer to turn off this device to save power`".." -ForegroundColor Yellow
+            # Step 2: Disable "AllowComputerToTurnOffDevice"
+            Write-Host "$(Get-Timestamp) Step 2: Disabling `"AllowComputerToTurnOffDevice`".." -ForegroundColor Yellow
             $power.AllowComputerToTurnOffDevice = 'Disabled'
             $power | Set-NetAdapterPowerManagement
-            Write-Host "$(Get-Timestamp) Successfully disabled `"Allow the computer to turn off this device to save power`" option." -ForegroundColor Green
+            Write-Host "$(Get-Timestamp) Successfully disabled `"AllowComputerToTurnOffDevice`" option." -ForegroundColor Green
 
-            # Step 3: Enable the device to wake the system from a sleep state
-            Write-Host "$(Get-Timestamp) Step 3: Enabling the device to wake the system from a sleep state.." -ForegroundColor Yellow
+            # Step 3: Disable "DeviceSleepOnDisconnect"
+            Write-Host "$(Get-Timestamp) Step 3: Disabling `"DeviceSleepOnDisconnect`".." -ForegroundColor Yellow
+            $power.DeviceSleepOnDisconnect = 'Disabled'
+            $power | Set-NetAdapterPowerManagement
+            Write-Host "$(Get-Timestamp) Successfully disabled `"DeviceSleepOnDisconnect`" option." -ForegroundColor Green
+
+            # Step 4: Enable the device to wake the system from a sleep state
+            Write-Host "$(Get-Timestamp) Step 4: Enabling the device to wake the system from a sleep state.." -ForegroundColor Yellow
             powercfg -deviceenablewake "`"$fullDeviceName`""
             Write-Host "$(Get-Timestamp) Enabled the device to wake the system from a sleep state." -ForegroundColor Green
 
